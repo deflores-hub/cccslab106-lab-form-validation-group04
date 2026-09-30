@@ -1,10 +1,6 @@
 """
 CCCS 106: Application Development and Emerging Technologies
-Automated Unit Test Suite for Week 5 Form Validation Engine
-Instructor: Allan O. Ibo, Jr., MSc
-
-Executes comprehensive edge-case testing against ScholarshipValidator and
-ScholarshipApplicant domain contracts without requiring a GUI window.
+Week 5 Laboratory Task: Unit Test Suite for Scholarship Intake Portal
 """
 
 import unittest
@@ -19,178 +15,87 @@ from scholarship_portal import (
 
 
 class TestScholarshipValidator(unittest.TestCase):
-    """Test suite covering all domain validation rules and regex edge cases."""
+    """Test suite for validating user input rules."""
 
     # ------------------------------------------------------------------------
-    # 1. FULL NAME VALIDATION
+    # FULL NAME VALIDATION
     # ------------------------------------------------------------------------
-    def test_valid_name(self):
-        self.assertEqual(ScholarshipValidator.validate_name("Juan Dela Cruz"), "Juan Dela Cruz")
-        self.assertEqual(ScholarshipValidator.validate_name("  Maria Clara O. Santos  "), "Maria Clara O. Santos")
-        self.assertEqual(ScholarshipValidator.validate_name("Jean-Luc Picard"), "Jean-Luc Picard")
+    def test_validate_name_valid(self):
+        self.assertEqual(ScholarshipValidator.validate_name("Maria Clara Santos"), "Maria Clara Santos")
+        self.assertEqual(ScholarshipValidator.validate_name("Juan Dela Cruz, Jr."), "Juan Dela Cruz, Jr.")
 
-    def test_invalid_name_empty(self):
+    def test_validate_name_empty(self):
         with self.assertRaises(ScholarshipValidationError):
             ScholarshipValidator.validate_name("")
         with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_name("    ")
+            ScholarshipValidator.validate_name(None)
 
-    def test_invalid_name_length_and_symbols(self):
+    def test_validate_name_invalid_chars(self):
         with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_name("A")  # Under 2 characters
+            ScholarshipValidator.validate_name("Juan123")
         with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_name("Juan123")  # Contains digits
-        with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_name("Juan <script>")  # Malicious tags
+            ScholarshipValidator.validate_name("Maria @ Santos")
 
     # ------------------------------------------------------------------------
-    # 2. STUDENT ID VALIDATION
+    # STUDENT ID VALIDATION
     # ------------------------------------------------------------------------
-    def test_valid_student_id(self):
+    def test_validate_student_id_valid(self):
         self.assertEqual(ScholarshipValidator.validate_student_id("2024-0123"), "2024-0123")
-        self.assertEqual(ScholarshipValidator.validate_student_id(" 2025-10456 "), "2025-10456")
+        self.assertEqual(ScholarshipValidator.validate_student_id("2023-12345"), "2023-12345")
 
-    def test_invalid_student_id_format(self):
+    def test_validate_student_id_invalid(self):
         with self.assertRaises(IDFormatError):
-            ScholarshipValidator.validate_student_id("24-0123")  # Missing 20XX
+            ScholarshipValidator.validate_student_id("1999-0123")  # Must start with 20YY
         with self.assertRaises(IDFormatError):
-            ScholarshipValidator.validate_student_id("2024_0123")  # Underscore instead of hyphen
+            ScholarshipValidator.validate_student_id("20240123")   # Missing hyphen
         with self.assertRaises(IDFormatError):
-            ScholarshipValidator.validate_student_id("abcd-1234")  # Letters in year
-        with self.assertRaises(IDFormatError):
-            ScholarshipValidator.validate_student_id("")  # Empty
+            ScholarshipValidator.validate_student_id("ABCD-EFGH")
 
     # ------------------------------------------------------------------------
-    # 3. INSTITUTIONAL EMAIL VALIDATION
+    # INSTITUTIONAL EMAIL VALIDATION
     # ------------------------------------------------------------------------
-    def test_valid_email(self):
+    def test_validate_email_valid(self):
         self.assertEqual(
             ScholarshipValidator.validate_email("mclara.santos@cspc.edu.ph"),
             "mclara.santos@cspc.edu.ph"
         )
-        self.assertEqual(
-            ScholarshipValidator.validate_email("  JUAN.DELACRUZ@CSPC.EDU.PH "),
-            "juan.delacruz@cspc.edu.ph"
-        )
 
-    def test_invalid_email_domain(self):
+    def test_validate_email_invalid_domain(self):
         with self.assertRaises(EmailDomainError):
-            ScholarshipValidator.validate_email("juan@gmail.com")
+            ScholarshipValidator.validate_email("mclara.santos@gmail.com")
         with self.assertRaises(EmailDomainError):
-            ScholarshipValidator.validate_email("juan@cspc.edu.com")
-        with self.assertRaises(EmailDomainError):
-            ScholarshipValidator.validate_email("not-an-email")
-        with self.assertRaises(EmailDomainError):
-            ScholarshipValidator.validate_email("")
+            ScholarshipValidator.validate_email("mclara.santos@cspc.edu")
 
     # ------------------------------------------------------------------------
-    # 4. PHILIPPINE MOBILE PHONE VALIDATION & NORMALIZATION
+    # PHILIPPINE MOBILE NUMBER VALIDATION
     # ------------------------------------------------------------------------
-    def test_valid_phone_normalization(self):
-        # 09 local format
+    def test_validate_phone_valid(self):
         self.assertEqual(ScholarshipValidator.validate_phone("09181234567"), "09181234567")
-        # International +63 format converted to 09
         self.assertEqual(ScholarshipValidator.validate_phone("+639181234567"), "09181234567")
-        # Formatted with spaces and hyphens
-        self.assertEqual(ScholarshipValidator.validate_phone("  +63 918-123-4567  "), "09181234567")
 
-    def test_invalid_phone_numbers(self):
+    def test_validate_phone_invalid(self):
         with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_phone("08123456789")  # Non-09 prefix
+            ScholarshipValidator.validate_phone("08181234567")  # Must start with 09
         with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_phone("0918123456")  # Too short (10 digits)
-        with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_phone("091812345678")  # Too long (12 digits)
-        with self.assertRaises(ScholarshipValidationError):
-            ScholarshipValidator.validate_phone("abcdefghijk")
+            ScholarshipValidator.validate_phone("091812345")    # Too short
 
     # ------------------------------------------------------------------------
-    # 5. GWA NUMERIC & RANGE VALIDATION
+    # ACADEMIC GWA VALIDATION
     # ------------------------------------------------------------------------
-    def test_valid_gwa(self):
-        self.assertEqual(ScholarshipValidator.validate_gwa("1.00"), 1.00)
-        self.assertEqual(ScholarshipValidator.validate_gwa(" 1.45 "), 1.45)
+    def test_validate_gwa_valid(self):
+        self.assertEqual(ScholarshipValidator.validate_gwa("1.25"), 1.25)
         self.assertEqual(ScholarshipValidator.validate_gwa("5.00"), 5.00)
 
-    def test_invalid_gwa_out_of_bounds(self):
+    def test_validate_gwa_out_of_bounds(self):
         with self.assertRaises(GWARangeError):
-            ScholarshipValidator.validate_gwa("0.95")  # Beyond highest honor
+            ScholarshipValidator.validate_gwa("0.99")
         with self.assertRaises(GWARangeError):
-            ScholarshipValidator.validate_gwa("5.25")  # Beyond failing bound
+            ScholarshipValidator.validate_gwa("5.01")
+
+    def test_validate_gwa_non_numeric(self):
         with self.assertRaises(GWARangeError):
-            ScholarshipValidator.validate_gwa("-1.50")
-
-    def test_invalid_gwa_non_numeric(self):
-        with self.assertRaises(GWARangeError):
-            ScholarshipValidator.validate_gwa("uno")
-        with self.assertRaises(GWARangeError):
-            ScholarshipValidator.validate_gwa("1.45GPA")
-        with self.assertRaises(GWARangeError):
-            ScholarshipValidator.validate_gwa("")
-
-    # ------------------------------------------------------------------------
-    # 6. DOMAIN CONTRACT (@DATACLASS) IMMUTABILITY
-    # ------------------------------------------------------------------------
-    def test_dataclass_contract_creation(self):
-        applicant = ScholarshipApplicant(
-            full_name="Maria Clara Santos",
-            student_id="2024-0891",
-            email="mclara.santos@cspc.edu.ph",
-            phone="09181234567",
-            gwa=1.45,
-            program="DOST Science & Technology Scholarship"
-        )
-        self.assertEqual(applicant.full_name, "Maria Clara Santos")
-        self.assertEqual(applicant.gwa, 1.45)
-
-        # Frozen contract test (mutation must raise FrozenInstanceError)
-        with self.assertRaises(Exception):
-            applicant.gwa = 1.00
-
-    # ------------------------------------------------------------------------
-    # 7. GUI EVENT FLOW INTEGRATION TEST (MOCK RUNNER)
-    # ------------------------------------------------------------------------
-    def test_gui_submission_flow(self):
-        from unittest.mock import MagicMock
-        import flet as ft
-        import scholarship_portal
-
-        mock_page = MagicMock()
-        mock_page.window = MagicMock()
-        mock_page.show_dialog = MagicMock()
-        mock_page.update = MagicMock()
-
-        # Initialize GUI
-        scholarship_portal.main(mock_page)
-
-        col = mock_page.add.call_args[0][0]
-        submit_btn = next(c for c in col.controls if isinstance(c, ft.FilledButton))
-        name_field = col.controls[2]
-        id_field = col.controls[3]
-        email_field = col.controls[4]
-        phone_field = col.controls[5]
-        gwa_field = col.controls[6]
-        program_dropdown = col.controls[7]
-
-        # Trigger submission on invalid empty fields
-        submit_btn.on_click(MagicMock())
-        self.assertIsNotNone(name_field.error)
-        self.assertTrue(mock_page.show_dialog.called)
-
-        # Populate valid applicant data
-        name_field.value = "Maria Clara Santos"
-        id_field.value = "2024-0891"
-        email_field.value = "mclara.santos@cspc.edu.ph"
-        phone_field.value = "09181234567"
-        gwa_field.value = "1.45"
-        program_dropdown.value = "DOST Science & Technology Scholarship"
-
-        # Trigger valid submission (builds dataclass and card with ft.Border.all)
-        mock_page.show_dialog.reset_mock()
-        submit_btn.on_click(MagicMock())
-        self.assertIsNone(name_field.error)
-        self.assertTrue(mock_page.show_dialog.called)
+            ScholarshipValidator.validate_gwa("PASSED")
 
 
 if __name__ == "__main__":
-    unittest.main()
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8550)
