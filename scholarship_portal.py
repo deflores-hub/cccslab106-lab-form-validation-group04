@@ -1,11 +1,7 @@
 """
 CCCS 106: Application Development and Emerging Technologies
-Week 5 Laboratory Task: CSPC Scholarship Intake Portal
+Week 5 Laboratory Task: CSPC Scholarship Intake Portal (Real-time PubSub Enabled)
 Instructor: Allan O. Ibo, Jr., MSc
-
-Instructions:
-  Complete the TODO blocks in Tier 1 and Tier 2.
-Target Framework: Flet v0.86.5 (Python 3.12+)
 """
 
 import re
@@ -20,28 +16,20 @@ import flet as ft
 # ============================================================================
 
 class ScholarshipValidationError(Exception):
-    """Base exception for all scholarship domain validation errors."""
     pass
-
 
 class IDFormatError(ScholarshipValidationError):
-    """Raised when student ID does not conform to the CSPC format."""
     pass
-
 
 class EmailDomainError(ScholarshipValidationError):
-    """Raised when an email does not belong to the @cspc.edu.ph domain."""
     pass
 
-
 class GWARangeError(ScholarshipValidationError):
-    """Raised when GWA falls outside the 1.00 to 5.00 grading scale."""
     pass
 
 
 @dataclass(frozen=True)
 class ScholarshipApplicant:
-    """Immutable domain contract representing a verified scholarship applicant."""
     full_name: str
     student_id: str
     email: str
@@ -52,13 +40,10 @@ class ScholarshipApplicant:
 
 
 # ============================================================================
-# TIER 2: VALIDATION ENGINE (STUDENT IMPLEMENTATION)
+# TIER 2: VALIDATION ENGINE
 # ============================================================================
 
 class ScholarshipValidator:
-    """Encapsulated validation rules and regex logic for scholarship applicants."""
-
-    # Compile Regular Expressions
     NAME_REGEX = re.compile(r"^[A-Za-z\s.\-',]{2,60}$")
     STUDENT_ID_REGEX = re.compile(r"^20\d{2}-\d{4,5}$")
     CSPC_EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@cspc\.edu\.ph$")
@@ -66,16 +51,10 @@ class ScholarshipValidator:
 
     @classmethod
     def sanitize_string(cls, raw: Optional[str]) -> str:
-        """Strip leading/trailing whitespace defensively handling None."""
         return (raw or "").strip()
 
     @classmethod
     def validate_name(cls, value: Optional[str]) -> str:
-        """
-        Validates full name.
-        Returns: Sanitized clean name.
-        Raises: ScholarshipValidationError if invalid.
-        """
         clean = cls.sanitize_string(value)
         if not clean:
             raise ScholarshipValidationError("Full name is required.")
@@ -85,11 +64,6 @@ class ScholarshipValidator:
 
     @classmethod
     def validate_student_id(cls, value: Optional[str]) -> str:
-        """
-        Validates CSPC student ID format (YYYY-NNNN).
-        Returns: Normalized student ID.
-        Raises: IDFormatError if invalid.
-        """
         clean = cls.sanitize_string(value)
         if not clean:
             raise IDFormatError("Student ID is required.")
@@ -99,11 +73,6 @@ class ScholarshipValidator:
 
     @classmethod
     def validate_email(cls, value: Optional[str]) -> str:
-        """
-        Validates institutional CSPC email address.
-        Returns: Lowercased, sanitized email.
-        Raises: EmailDomainError if invalid.
-        """
         clean = cls.sanitize_string(value).lower()
         if not clean:
             raise EmailDomainError("Institutional email is required.")
@@ -113,29 +82,16 @@ class ScholarshipValidator:
 
     @classmethod
     def validate_phone(cls, value: Optional[str]) -> str:
-        """
-        Validates and standardizes Philippine mobile numbers to 09XXXXXXXXX.
-        Returns: Normalized 11-digit phone string.
-        Raises: ScholarshipValidationError if invalid.
-        """
         clean = cls.sanitize_string(value)
         cleaned = re.sub(r"[\s\-]", "", clean)
-
         if not cls.PH_PHONE_REGEX.match(cleaned):
             raise ScholarshipValidationError("Enter a valid PH mobile number (e.g., 09181234567 or +639181234567).")
-
         if cleaned.startswith("+63"):
             cleaned = "0" + cleaned[3:]
-
         return cleaned
 
     @classmethod
     def validate_gwa(cls, value: Optional[str]) -> float:
-        """
-        Defensively parses string to float and checks 1.00 <= GWA <= 5.00.
-        Returns: Parsed float value.
-        Raises: GWARangeError if out of bounds or non-numeric.
-        """
         clean = cls.sanitize_string(value)
         if not clean:
             raise GWARangeError("GWA is required.")
@@ -143,73 +99,33 @@ class ScholarshipValidator:
             gwa_val = float(clean)
         except ValueError:
             raise GWARangeError("GWA must be a numeric decimal value.")
-
         if not (1.00 <= gwa_val <= 5.00):
             raise GWARangeError("GWA must be between 1.00 and 5.00.")
-
         return gwa_val
 
 
-# ============================================================================
-# TIER 1: FLET PRESENTATION LAYER
-# ============================================================================
+# Shared in-memory list across all active browser connections
+GLOBAL_APPLICANTS = []
 
 def main(page: ft.Page):
     page.title = "CSPC Scholarship Intake Portal"
-    page.window.width = 620
-    page.window.height = 780
-    page.window.resizable = False
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 25
 
-    # Storage for approved applications during this session
-    approved_applicants: list[ScholarshipApplicant] = []
-
-    # Column container to display generated contract cards
     recent_contracts_column = ft.Column(spacing=10)
 
     # UI Controls
-    name_field = ft.TextField(
-        label="Full Name",
-        hint_text="e.g., Maria Clara Santos",
-        prefix_icon=ft.Icons.PERSON_OUTLINE,
-        border_radius=8
-    )
+    name_field = ft.TextField(label="Full Name", hint_text="e.g., Maria Clara Santos", prefix_icon=ft.Icons.PERSON_OUTLINE, border_radius=8)
+    id_field = ft.TextField(label="Student ID Number", hint_text="e.g., 2024-0123", prefix_icon=ft.Icons.BADGE_OUTLINED, border_radius=8)
+    email_field = ft.TextField(label="Institutional Email", hint_text="e.g., mclara.santos@cspc.edu.ph", prefix_icon=ft.Icons.ALTERNATE_EMAIL, border_radius=8)
+    phone_field = ft.TextField(label="Philippine Mobile Number", hint_text="e.g., 09181234567", prefix_icon=ft.Icons.PHONE_ANDROID_OUTLINED, border_radius=8)
+    gwa_field = ft.TextField(label="Academic General Weighted Average (GWA)", hint_text="Scale: 1.00 to 5.00", prefix_icon=ft.Icons.GRADE_OUTLINED, border_radius=8)
 
-    id_field = ft.TextField(
-        label="Student ID Number",
-        hint_text="e.g., 2024-0123",
-        prefix_icon=ft.Icons.BADGE_OUTLINED,
-        border_radius=8
-    )
-
-    email_field = ft.TextField(
-        label="Institutional Email",
-        hint_text="e.g., mclara.santos@cspc.edu.ph",
-        prefix_icon=ft.Icons.ALTERNATE_EMAIL,
-        border_radius=8
-    )
-
-    phone_field = ft.TextField(
-        label="Philippine Mobile Number",
-        hint_text="e.g., 09181234567 or +639181234567",
-        prefix_icon=ft.Icons.PHONE_ANDROID_OUTLINED,
-        border_radius=8
-    )
-
-    gwa_field = ft.TextField(
-        label="Academic General Weighted Average (GWA)",
-        hint_text="Scale: 1.00 (highest) to 5.00 (passing/failing)",
-        prefix_icon=ft.Icons.GRADE_OUTLINED,
-        border_radius=8
-    )
-
-    # Dropdown control without illegal leading_icon argument
     program_dropdown = ft.Dropdown(
         label="Scholarship Program",
         hint_text="Select your scholarship grant",
+        leading_icon=ft.Icons.SCHOOL_OUTLINED,
         border_radius=8,
-        expand=True,
         options=[
             ft.dropdown.Option("CHED Tulong Dunong Program (TDP)"),
             ft.dropdown.Option("DOST Science & Technology Scholarship"),
@@ -218,46 +134,23 @@ def main(page: ft.Page):
         ]
     )
 
-    # Row container to render the School Icon cleanly beside the Dropdown
-    dropdown_with_icon = ft.Row(
-        controls=[
-            ft.Icon(ft.Icons.SCHOOL_OUTLINED, size=24, color=ft.Colors.GREY_400),
-            program_dropdown
-        ],
-        spacing=10
-    )
+    status_summary = ft.Text(value=f"Applications registered this session: {len(GLOBAL_APPLICANTS)}", color=ft.Colors.GREY_400, size=13)
 
-    status_summary = ft.Text(
-        value="Applications registered this session: 0",
-        color=ft.Colors.GREY_400,
-        size=13
-    )
-
-    # Toast message helper for floating notifications
     def show_toast(message: str, bg_color: str):
-        snack = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=bg_color,
-            behavior=ft.SnackBarBehavior.FLOATING
-        )
+        snack = ft.SnackBar(content=ft.Text(message), bgcolor=bg_color, behavior=ft.SnackBarBehavior.FLOATING)
         page.overlay.append(snack)
         snack.open = True
         page.update()
 
-    # ------------------------------------------------------------------------
-    # REAL-TIME ERROR CLEARING HANDLERS (UX ENHANCEMENT)
-    # ------------------------------------------------------------------------
     def clear_field_error(e):
-        """Instantly clears error state when the user begins typing."""
-        if hasattr(e.control, "error") and e.control.error:
+        if hasattr(e.control, 'error') and e.control.error:
             e.control.error = None
             page.update()
-        elif hasattr(e.control, "error_text") and e.control.error_text:
+        elif hasattr(e.control, 'error_text') and e.control.error_text:
             e.control.error_text = None
             page.update()
 
     def clear_dropdown_error(e):
-        """Instantly clears dropdown error state on selection."""
         if e.control.error_text:
             e.control.error_text = None
             page.update()
@@ -270,110 +163,25 @@ def main(page: ft.Page):
     program_dropdown.on_change = clear_dropdown_error
 
     def set_field_error(field_control, err_msg: str):
-        if hasattr(field_control, "error"):
+        if hasattr(field_control, 'error'):
             field_control.error = err_msg
         else:
             field_control.error_text = err_msg
 
-    # ------------------------------------------------------------------------
-    # FORM SUBMISSION & MULTI-TIER DEFENSIVE PIPELINE
-    # ------------------------------------------------------------------------
-    def submit_application(e):
-        has_errors = False
-
-        # Reset all error states before evaluation
-        name_field.error = None
-        id_field.error = None
-        email_field.error = None
-        phone_field.error = None
-        gwa_field.error = None
-        program_dropdown.error_text = None
-
-        # 1. Validate Name
-        clean_name = ""
-        try:
-            clean_name = ScholarshipValidator.validate_name(name_field.value)
-        except ScholarshipValidationError as err:
-            set_field_error(name_field, str(err))
-            has_errors = True
-
-        # 2. Validate Student ID
-        clean_id = ""
-        try:
-            clean_id = ScholarshipValidator.validate_student_id(id_field.value)
-        except IDFormatError as err:
-            set_field_error(id_field, str(err))
-            has_errors = True
-
-        # 3. Validate Email
-        clean_email = ""
-        try:
-            clean_email = ScholarshipValidator.validate_email(email_field.value)
-        except EmailDomainError as err:
-            set_field_error(email_field, str(err))
-            has_errors = True
-
-        # 4. Validate Phone
-        clean_phone = ""
-        try:
-            clean_phone = ScholarshipValidator.validate_phone(phone_field.value)
-        except ScholarshipValidationError as err:
-            set_field_error(phone_field, str(err))
-            has_errors = True
-
-        # 5. Validate GWA
-        clean_gwa = 0.0
-        try:
-            clean_gwa = ScholarshipValidator.validate_gwa(gwa_field.value)
-        except GWARangeError as err:
-            set_field_error(gwa_field, str(err))
-            has_errors = True
-
-        # 6. Validate Program Selection
-        if not program_dropdown.value:
-            program_dropdown.error_text = "Please select an accredited scholarship program."
-            has_errors = True
-
-        # If any validation errors occurred, abort and notify
-        if has_errors:
-            show_toast("Validation failed: Please correct highlighted fields.", ft.Colors.RED_700)
-            return
-
-        # 7. All Validations Passed: Instantiate Domain Contract
-        applicant = ScholarshipApplicant(
-            full_name=clean_name,
-            student_id=clean_id,
-            email=clean_email,
-            phone=clean_phone,
-            gwa=clean_gwa,
-            program=program_dropdown.value
-        )
-        approved_applicants.append(applicant)
-
-        # Build dynamic intake contract card UI
-        timestamp = applicant.submitted_at.strftime("%H:%M:%S")
-        record_card = ft.Container(
+    def render_card(applicant_dict):
+        return ft.Container(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_400, size=24),
                     ft.Column(
                         controls=[
-                            ft.Text(
-                                f"{applicant.full_name} ({applicant.student_id})",
-                                weight=ft.FontWeight.BOLD,
-                                size=14,
-                                color=ft.Colors.WHITE
-                            ),
-                            ft.Text(
-                                f"{applicant.program} • GWA: {applicant.gwa:.2f} • {applicant.email}",
-                                size=12,
-                                color=ft.Colors.GREY_400
-                            ),
+                            ft.Text(f"{applicant_dict['name']} ({applicant_dict['id']})", weight=ft.FontWeight.BOLD, size=14, color=ft.Colors.WHITE),
+                            ft.Text(f"{applicant_dict['program']} • GWA: {applicant_dict['gwa']} • {applicant_dict['email']}", size=12, color=ft.Colors.GREY_400),
                         ],
                         spacing=2,
                         expand=True
                     ),
-                    ft.Text(timestamp, size=12, color=ft.Colors.GREY_500)
+                    ft.Text(applicant_dict['timestamp'], size=12, color=ft.Colors.GREY_500)
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN
             ),
@@ -382,12 +190,81 @@ def main(page: ft.Page):
             border_radius=8,
             border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT)
         )
-        recent_contracts_column.controls.insert(0, record_card)
 
-        # Update Session Counter
-        status_summary.value = f"Applications registered this session: {len(approved_applicants)}"
+    # Load existing cards on page load
+    for item in reversed(GLOBAL_APPLICANTS):
+        recent_contracts_column.controls.append(render_card(item))
 
-        # Clear input fields
+    # Real-time Broadcast Listener
+    def on_broadcast(data):
+        recent_contracts_column.controls.insert(0, render_card(data))
+        status_summary.value = f"Applications registered this session: {len(GLOBAL_APPLICANTS)}"
+        page.update()
+
+    page.pubsub.subscribe(on_broadcast)
+
+    def submit_application(e):
+        has_errors = False
+        name_field.error = None
+        id_field.error = None
+        email_field.error = None
+        phone_field.error = None
+        gwa_field.error = None
+        program_dropdown.error_text = None
+
+        try:
+            clean_name = ScholarshipValidator.validate_name(name_field.value)
+        except ScholarshipValidationError as err:
+            set_field_error(name_field, str(err))
+            has_errors = True
+
+        try:
+            clean_id = ScholarshipValidator.validate_student_id(id_field.value)
+        except IDFormatError as err:
+            set_field_error(id_field, str(err))
+            has_errors = True
+
+        try:
+            clean_email = ScholarshipValidator.validate_email(email_field.value)
+        except EmailDomainError as err:
+            set_field_error(email_field, str(err))
+            has_errors = True
+
+        try:
+            clean_phone = ScholarshipValidator.validate_phone(phone_field.value)
+        except ScholarshipValidationError as err:
+            set_field_error(phone_field, str(err))
+            has_errors = True
+
+        try:
+            clean_gwa = ScholarshipValidator.validate_gwa(gwa_field.value)
+        except GWARangeError as err:
+            set_field_error(gwa_field, str(err))
+            has_errors = True
+
+        if not program_dropdown.value:
+            program_dropdown.error_text = "Please select a scholarship program."
+            has_errors = True
+
+        if has_errors:
+            show_toast("Validation failed: Please correct highlighted fields.", ft.Colors.RED_700)
+            return
+
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        record_data = {
+            "name": clean_name,
+            "id": clean_id,
+            "email": clean_email,
+            "program": program_dropdown.value,
+            "gwa": f"{clean_gwa:.2f}",
+            "timestamp": timestamp
+        }
+
+        GLOBAL_APPLICANTS.append(record_data)
+
+        # Broadcast to all connected clients instantly
+        page.pubsub.send_all(record_data)
+
         name_field.value = ""
         id_field.value = ""
         email_field.value = ""
@@ -395,10 +272,8 @@ def main(page: ft.Page):
         gwa_field.value = ""
         program_dropdown.value = None
 
-        show_toast("Application successfully validated and intake contract generated.", ft.Colors.GREEN_700)
-        page.update()
+        show_toast(f"Application accepted for {clean_name}", ft.Colors.GREEN_700)
 
-    # Layout Assembly
     submit_button = ft.FilledButton(
         content=ft.Row(
             controls=[
@@ -407,10 +282,7 @@ def main(page: ft.Page):
             ],
             alignment=ft.MainAxisAlignment.CENTER
         ),
-        style=ft.ButtonStyle(
-            bgcolor=ft.Colors.BLUE_700,
-            shape=ft.RoundedRectangleBorder(radius=8)
-        ),
+        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, shape=ft.RoundedRectangleBorder(radius=8)),
         height=48,
         on_click=submit_application
     )
@@ -420,8 +292,7 @@ def main(page: ft.Page):
             controls=[
                 ft.Row(
                     controls=[
-                        # Star Police Badge Header Icon preserved here
-                        ft.Icon(ft.Icons.LOCAL_POLICE, size=32, color=ft.Colors.BLUE_400),
+                        ft.Icon(ft.Icons.SHIELD_OUTLINED, size=32, color=ft.Colors.BLUE_400),
                         ft.Column(
                             controls=[
                                 ft.Text("CSPC Scholarship Intake Portal", size=20, weight=ft.FontWeight.BOLD),
@@ -437,7 +308,7 @@ def main(page: ft.Page):
                 email_field,
                 phone_field,
                 gwa_field,
-                dropdown_with_icon,
+                program_dropdown,
                 ft.Container(height=5),
                 submit_button,
                 ft.Container(height=5),
@@ -456,6 +327,5 @@ def main(page: ft.Page):
         )
     )
 
-
 if __name__ == "__main__":
-    ft.run(main)
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8550)
