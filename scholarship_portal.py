@@ -412,7 +412,7 @@ def main(page: ft.Page):
                         ),
                     ]
                 ),
-                history_column,
+            
                 ft.Container(height=20),  # bottom breathing room so the last card isn't cramped
             ],
             spacing=14,
