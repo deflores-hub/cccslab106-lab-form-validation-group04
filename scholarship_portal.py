@@ -76,7 +76,6 @@ class ScholarshipValidator:
         Returns: Sanitized clean name.
         Raises: ScholarshipValidationError if invalid.
         """
-        # TODO: Implement sanitization and pattern validation
         clean = cls.sanitize_string(value)
         if not clean:
             raise ScholarshipValidationError("Full name is required.")
@@ -132,10 +131,13 @@ class ScholarshipValidator:
 def main(page: ft.Page):
     page.title = "CSPC Scholarship Intake Portal"
     page.window.width = 620
-    page.window.height = 780
-    page.window.resizable = False
+    page.window.height = 900
+    page.window.resizable = True
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 25
+
+    # FIX: let the whole page scroll so the applicant list is never cut off
+    page.scroll = ft.ScrollMode.AUTO
 
     # Storage for approved applications during this session
     approved_applicants: list[ScholarshipApplicant] = []
@@ -355,17 +357,6 @@ def main(page: ft.Page):
 
         page.update()
 
-        # Reset form
-        name_field.value = ""
-        id_field.value = ""
-        email_field.value = ""
-        phone_field.value = ""
-        gwa_field.value = ""
-        program_dropdown.value = None
-
-        status_summary.value = f"Total approved applicants: {len(approved_applicants)}"
-        page.update()
-
     # Layout Assembly
     submit_button = ft.FilledButton(
         content=ft.Row(
@@ -421,13 +412,14 @@ def main(page: ft.Page):
                         ),
                     ]
                 ),
-                history_column
+                history_column,
+                ft.Container(height=20),  # bottom breathing room so the last card isn't cramped
             ],
             spacing=14,
-            scroll=ft.ScrollMode.AUTO
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
     )
 
 
-if __name__ == "_main_":
+if __name__ == "__main__":
     ft.run(main)
