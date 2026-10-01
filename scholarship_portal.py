@@ -136,7 +136,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 25
 
-    # FIX: let the whole page scroll so the applicant list is never cut off
+    # Let the whole page scroll so the applicant list is never cut off
     page.scroll = ft.ScrollMode.AUTO
 
     # Storage for approved applications during this session
@@ -197,6 +197,7 @@ def main(page: ft.Page):
         size=13
     )
 
+    # Holds one card per registered applicant (newest first)
     history_column = ft.Column(spacing=8)
 
     # ------------------------------------------------------------------------
@@ -412,7 +413,7 @@ def main(page: ft.Page):
                         ),
                     ]
                 ),
-            
+                history_column,  # <-- registered applicants now appear here
                 ft.Container(height=20),  # bottom breathing room so the last card isn't cramped
             ],
             spacing=14,
